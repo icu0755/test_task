@@ -17,7 +17,6 @@ type ArtistsJson []struct {
 	Name string `json:"name"`
 }
 
-var response string
 var a ArtistsJson
 
 func (h myHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -57,7 +56,6 @@ func readResponse() {
 	if err != nil {
 		log.Fatalln("cannot read file", err.Error())
 	}
-	response = string(bs)
 	err = json.Unmarshal(bs, &a)
 	if err != nil {
 		panic(err)
