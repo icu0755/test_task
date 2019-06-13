@@ -12,12 +12,56 @@ import (
 
 const ItemsPerPage = 5
 
-type myHandler int
 type ArtistsJson []struct {
 	Name string `json:"name"`
 }
 
 var a ArtistsJson
+
+type DataSource struct {
+	Data ArtistsJson
+}
+
+func (ds DataSource) fromFile(fileName string) {
+	f, err := os.Open(fileName)
+	if err != nil {
+		log.Fatalln("cannot open file", err.Error())
+	}
+	defer f.Close()
+	bs, err := ioutil.ReadAll(f)
+	if err != nil {
+		log.Fatalln("cannot read file", err.Error())
+	}
+	err = json.Unmarshal(bs, &ds.Data)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (ds DataSource) getPage(page int, itemsPerPage int) ArtistsJson {
+	first := itemsPerPage * (page - 1)
+	last := itemsPerPage * (page)
+	count := len(ds.Data)
+
+	if first > count {
+		first = count
+
+	}
+
+	if last > count {
+		last = count
+	}
+
+	return ds.Data[first:last]
+}
+
+type myHandler struct {
+	ds DataSource
+}
+
+func newMyHandler(ds DataSource) *myHandler {
+	return &myHandler{ds: ds}
+}
 
 func (h myHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var page int
@@ -35,37 +79,30 @@ func (h myHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		res.Header().Set("Content-Type", "application/json")
 
-		artists := getPage(page, ItemsPerPage)
+		artists := h.ds.getPage(page, ItemsPerPage)
 
 		data, _ := json.Marshal(artists)
 		res.Write(data)
 	}
 }
 
-func getPage(page int, itemsPerPage int) ArtistsJson {
-	return a[itemsPerPage*(page-1) : itemsPerPage*(page)]
+type Foo struct {
+	Bar []int
 }
 
-func readResponse() {
-	f, err := os.Open("./response.json")
-	if err != nil {
-		log.Fatalln("cannot open file", err.Error())
-	}
-	defer f.Close()
-	bs, err := ioutil.ReadAll(f)
-	if err != nil {
-		log.Fatalln("cannot read file", err.Error())
-	}
-	err = json.Unmarshal(bs, &a)
-	if err != nil {
-		panic(err)
-	}
+func (f Foo) init() {
+	f.Bar = append(f.Bar, 1)
 }
 
 func main() {
-	var h myHandler
+	var ds DataSource
+	ds.fromFile("./response.json")
+	h := newMyHandler(ds)
+	var f Foo
+	f.init()
+	f.init()
+	f.init()
 
-	readResponse()
 	log.Println("serve on http://localhost:9000")
 	http.ListenAndServe(":9000", h)
 }
