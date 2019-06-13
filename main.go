@@ -16,13 +16,12 @@ type ArtistsJson []struct {
 	Name string `json:"name"`
 }
 
-var a ArtistsJson
-
 type DataSource struct {
-	Data ArtistsJson
+	Artists ArtistsJson
+	Count   int
 }
 
-func (ds DataSource) fromFile(fileName string) {
+func (ds *DataSource) fromFile(fileName string) {
 	f, err := os.Open(fileName)
 	if err != nil {
 		log.Fatalln("cannot open file", err.Error())
@@ -32,27 +31,36 @@ func (ds DataSource) fromFile(fileName string) {
 	if err != nil {
 		log.Fatalln("cannot read file", err.Error())
 	}
-	err = json.Unmarshal(bs, &ds.Data)
+	err = json.Unmarshal(bs, &ds.Artists)
 	if err != nil {
 		panic(err)
 	}
+
+	ds.Count = len(ds.Artists)
 }
 
-func (ds DataSource) getPage(page int, itemsPerPage int) ArtistsJson {
+func (ds *DataSource) getPage(page int, itemsPerPage int) ArtistsJson {
 	first := itemsPerPage * (page - 1)
 	last := itemsPerPage * (page)
-	count := len(ds.Data)
 
-	if first > count {
-		first = count
+	if first > ds.Count {
+		first = ds.Count
 
 	}
 
-	if last > count {
-		last = count
+	if last > ds.Count {
+		last = ds.Count
 	}
 
-	return ds.Data[first:last]
+	return ds.Artists[first:last]
+}
+
+func (ds *DataSource) getPages(itemsPerPage int) int {
+	pages := len(ds.Artists) / itemsPerPage
+	if ds.Count%itemsPerPage != 0 {
+		pages += 1
+	}
+	return pages
 }
 
 type myHandler struct {
@@ -86,22 +94,10 @@ func (h myHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-type Foo struct {
-	Bar []int
-}
-
-func (f Foo) init() {
-	f.Bar = append(f.Bar, 1)
-}
-
 func main() {
 	var ds DataSource
 	ds.fromFile("./response.json")
 	h := newMyHandler(ds)
-	var f Foo
-	f.init()
-	f.init()
-	f.init()
 
 	log.Println("serve on http://localhost:9000")
 	http.ListenAndServe(":9000", h)
