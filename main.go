@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -16,12 +15,18 @@ type ArtistsJson []struct {
 	Name string `json:"name"`
 }
 
+type PostsResponse struct {
+	Items ArtistsJson `json:"items"`
+	Pages int         `json:"pages"`
+}
+
 type DataSource struct {
 	Artists ArtistsJson
 	Count   int
 }
 
 func (ds *DataSource) fromFile(fileName string) {
+
 	f, err := os.Open(fileName)
 	if err != nil {
 		log.Fatalln("cannot open file", err.Error())
@@ -39,7 +44,7 @@ func (ds *DataSource) fromFile(fileName string) {
 	ds.Count = len(ds.Artists)
 }
 
-func (ds *DataSource) getPage(page int, itemsPerPage int) ArtistsJson {
+func (ds *DataSource) getPageItems(page int, itemsPerPage int) ArtistsJson {
 	first := itemsPerPage * (page - 1)
 	last := itemsPerPage * (page)
 
@@ -72,26 +77,31 @@ func newMyHandler(ds DataSource) *myHandler {
 }
 
 func (h myHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	var page int
-
 	switch req.URL.Path {
 	case "/api/posts":
-		pages, ok := req.URL.Query()["page"]
-		if !ok {
-			page = 1
-		} else {
-			page, _ = strconv.Atoi(pages[0])
-		}
-
-		fmt.Println("page: ", page)
+		page := h.getPage(req)
 
 		res.Header().Set("Content-Type", "application/json")
 
-		artists := h.ds.getPage(page, ItemsPerPage)
+		response := PostsResponse{
+			h.ds.getPageItems(page, ItemsPerPage),
+			h.ds.getPages(ItemsPerPage),
+		}
 
-		data, _ := json.Marshal(artists)
+		data, _ := json.Marshal(response)
 		res.Write(data)
 	}
+}
+
+func (h myHandler) getPage(req *http.Request) int {
+	var page int
+	pages, ok := req.URL.Query()["page"]
+	if !ok {
+		page = 1
+	} else {
+		page, _ = strconv.Atoi(pages[0])
+	}
+	return page
 }
 
 func main() {
