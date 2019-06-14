@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -18,6 +19,10 @@ type ArtistsJson []struct {
 type PostsResponse struct {
 	Items ArtistsJson `json:"items"`
 	Pages int         `json:"pages"`
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
 }
 
 type DataSource struct {
@@ -77,18 +82,28 @@ func newMyHandler(ds DataSource) *myHandler {
 }
 
 func (h myHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var data []byte
+
 	switch req.URL.Path {
 	case "/api/posts":
 		page := h.getPage(req)
 
 		res.Header().Set("Content-Type", "application/json")
 
-		response := PostsResponse{
-			h.ds.getPageItems(page, ItemsPerPage),
-			h.ds.getPages(ItemsPerPage),
+		if simulateError() {
+			res.WriteHeader(http.StatusInternalServerError)
+			response := ErrorResponse{
+				"Error occured. Please try later.",
+			}
+			data, _ = json.Marshal(response)
+		} else {
+			response := PostsResponse{
+				h.ds.getPageItems(page, ItemsPerPage),
+				h.ds.getPages(ItemsPerPage),
+			}
+			data, _ = json.Marshal(response)
 		}
 
-		data, _ := json.Marshal(response)
 		res.Write(data)
 	}
 }
@@ -102,6 +117,10 @@ func (h myHandler) getPage(req *http.Request) int {
 		page, _ = strconv.Atoi(pages[0])
 	}
 	return page
+}
+
+func simulateError() bool {
+	return (rand.Int() % 2) == 0
 }
 
 func main() {
